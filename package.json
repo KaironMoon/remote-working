@@ -1,0 +1,26 @@
+{
+  "name": "remote-working",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Project-bound Telegram client for Codex app-server",
+  "bin": {
+    "remote-working": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "start": "node dist/cli.js",
+    "format": "prettier --write \"{cli.ts,src/**/*.ts,test/**/*.ts,scripts/*.mjs,*.json,README.md}\"",
+    "format:check": "prettier --check \"{cli.ts,src/**/*.ts,test/**/*.ts,scripts/*.mjs,*.json,README.md}\"",
+    "smoke:codex": "npm run build && node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.0"
+  }
+}
