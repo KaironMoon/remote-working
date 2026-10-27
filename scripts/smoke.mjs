@@ -20,7 +20,7 @@ try {
     cwd: process.cwd(),
     ephemeral: true,
     sandbox: "read-only",
-    approvalPolicy: "untrusted",
+    approvalPolicy: "on-request",
     developerInstructions:
       "Do not use any tools. Reply only with the literal requested in this protocol smoke test.",
   });

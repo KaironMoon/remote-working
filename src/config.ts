@@ -20,6 +20,8 @@ export interface Config {
   codexPath: string;
   model?: string;
   workspace: "project" | "worktree";
+  sandbox?: "read-only" | "workspace-write" | "danger-full-access";
+  approvalPolicy?: "on-request" | "never";
 }
 export function dir(name: string) {
   if (!/^[a-zA-Z0-9_-]+$/.test(name))
@@ -53,6 +55,18 @@ export function validate(c: Config) {
     throw Error("tokenEnv를 환경변수 이름으로 설정하세요.");
   if (!["project", "worktree"].includes(c.workspace))
     throw Error("workspace는 project 또는 worktree여야 합니다.");
+  if (
+    c.sandbox !== undefined &&
+    !["read-only", "workspace-write", "danger-full-access"].includes(c.sandbox)
+  )
+    throw Error(
+      "sandbox는 read-only, workspace-write 또는 danger-full-access여야 합니다.",
+    );
+  if (
+    c.approvalPolicy !== undefined &&
+    !["on-request", "never"].includes(c.approvalPolicy)
+  )
+    throw Error("approvalPolicy는 on-request 또는 never여야 합니다.");
   c.projectPath = realpathSync(c.projectPath);
 }
 export function discover() {
@@ -81,6 +95,8 @@ export function init(name: string) {
         allowedUserIds: [],
         codexPath: discover(),
         workspace: "project",
+        sandbox: "workspace-write",
+        approvalPolicy: "on-request",
       },
       null,
       2,

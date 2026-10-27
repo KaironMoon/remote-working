@@ -7,7 +7,7 @@ import { EventEmitter } from "node:events";
 import { Store, Task } from "../src/store.js";
 import { parse, allowed } from "../src/router.js";
 import { Service, acquireLock } from "../src/service.js";
-import type { Config } from "../src/config.js";
+import { validate, type Config } from "../src/config.js";
 const c: Config = {
   name: "test",
   projectPath: "/tmp",
@@ -60,10 +60,10 @@ class Fake extends EventEmitter {
   }
   close() {}
 }
-function fixture() {
+function fixture(config: Config = c) {
   const s = new Store(":memory:");
   const rpc = new Fake();
-  const app = new Service(c, s, rpc as any, {} as any, "/tmp");
+  const app = new Service(config, s, rpc as any, {} as any, "/tmp");
   return { s, rpc, app };
 }
 function msg(text: string, user = 2, id = 1) {
@@ -351,3 +351,89 @@ test("permanent Telegram delivery failure does not block other recipients", asyn
   );
   s.close();
 });
+
+test("permission configuration accepts supported modes and rejects invalid values", () => {
+  const base = { ...c, projectPath: tmpdir() };
+  assert.doesNotThrow(() => validate({ ...base }));
+  for (const sandbox of [
+    "read-only",
+    "workspace-write",
+    "danger-full-access",
+  ] as const) {
+    for (const approvalPolicy of ["on-request", "never"] as const) {
+      assert.doesNotThrow(() => validate({ ...base, sandbox, approvalPolicy }));
+    }
+  }
+  for (const sandbox of [null, "", "full-access", false, 1]) {
+    assert.throws(() => validate({ ...base, sandbox } as any), /sandbox/);
+  }
+  for (const approvalPolicy of [null, "", "untrusted", false, 1]) {
+    assert.throws(
+      () => validate({ ...base, approvalPolicy } as any),
+      /approvalPolicy/,
+    );
+  }
+});
+
+test("missing permission settings use workspace-write and on-request for start and resume", async () => {
+  const { s, rpc, app } = fixture();
+  try {
+    await app.process(msg("새 작업: 검색 기능"));
+    await app.process(msg("계속 수정", 2, 2));
+    const calls = rpc.calls.filter(
+      (x) =>
+        x.method === "thread/resume" ||
+        (x.method === "thread/start" && !x.p.ephemeral),
+    );
+    assert.equal(calls.length, 2);
+    for (const call of calls) {
+      assert.equal(call.p.sandbox, "workspace-write");
+      assert.equal(call.p.approvalPolicy, "on-request");
+    }
+  } finally {
+    s.close();
+  }
+});
+
+for (const sandbox of [
+  "read-only",
+  "workspace-write",
+  "danger-full-access",
+] as const) {
+  for (const approvalPolicy of ["on-request", "never"] as const) {
+    test(`${sandbox} / ${approvalPolicy} applies to new and resumed tasks while routing remains read-only`, async () => {
+      const { s, rpc, app } = fixture({ ...c, sandbox, approvalPolicy });
+      try {
+        await app.process(msg("새 작업: 검색 기능"));
+        const thread = s.tasks()[0].thread;
+        // Simulate changing configuration before continuing an existing task.
+        app.c = { ...c };
+        await app.process(msg("계속 수정", 2, 2));
+        app.c = { ...c, sandbox, approvalPolicy };
+        await app.process(msg("계속 수정", 2, 3));
+        const start = rpc.calls.find(
+          (x) => x.method === "thread/start" && !x.p.ephemeral,
+        );
+        assert.equal(start.p.sandbox, sandbox);
+        assert.equal(start.p.approvalPolicy, approvalPolicy);
+        const resumes = rpc.calls.filter((x) => x.method === "thread/resume");
+        assert.equal(resumes.length, 2);
+        assert.equal(resumes[0].p.sandbox, "workspace-write");
+        assert.equal(resumes[0].p.approvalPolicy, "on-request");
+        assert.equal(resumes[1].p.threadId, thread);
+        assert.equal(resumes[1].p.sandbox, sandbox);
+        assert.equal(resumes[1].p.approvalPolicy, approvalPolicy);
+        const guides = rpc.calls.filter(
+          (x) => x.method === "thread/start" && x.p.ephemeral,
+        );
+        assert.equal(guides.length, 2);
+        for (const guide of guides) {
+          assert.equal(guide.p.sandbox, "read-only");
+          assert.equal(guide.p.approvalPolicy, "on-request");
+        }
+      } finally {
+        s.close();
+      }
+    });
+  }
+}

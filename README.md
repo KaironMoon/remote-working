@@ -33,7 +33,9 @@ npm start -- init my-project
   "adminIds": [123456789],
   "allowedUserIds": [234567890],
   "codexPath": "/absolute/path/to/codex",
-  "workspace": "project"
+  "workspace": "project",
+  "sandbox": "workspace-write",
+  "approvalPolicy": "on-request"
 }
 ```
 
@@ -45,6 +47,21 @@ npm start -- init my-project
 - `codexPath`: 설정 생성 시 실행 가능한 설치 경로를 탐색합니다. 깨진 전역 CLI가 있으면 앱 번들 경로를 먼저 사용합니다. 앱 업데이트 후 `doctor`로 재확인하세요.
 - `model`: 선택 항목. 생략하면 Codex 설정을 따릅니다.
 - `workspace`: `project`(기본) 또는 `worktree`.
+- `sandbox`: `read-only`, `workspace-write`(기본), `danger-full-access`. 작업 대화의 파일·명령 실행 권한입니다.
+- `approvalPolicy`: `on-request`(기본) 또는 `never`. `never`는 실행 승인 요청 없이 현재 권한 범위에서 실행합니다. 권한 범위를 자체적으로 확대하지는 않습니다.
+
+전체 액세스로 승인 대기 없이 실행하려면 연결 설정에 다음 값을 넣고 봇을 재시작하세요. 새 작업과 기존 작업 이어가기에 모두 적용됩니다. 메시지 분류용 임시 대화는 항상 읽기 전용입니다.
+
+```json
+{
+  "sandbox": "danger-full-access",
+  "approvalPolicy": "never"
+}
+```
+
+전체 액세스에서는 로컬 실행 계정이 접근할 수 있는 프로젝트 밖 파일과 네트워크에도 접근할 수 있습니다. 이 권한은 `adminIds`와 `allowedUserIds`에 등록된 모든 작업 요청자에게 적용됩니다. 관리자 전용 모드는 아닙니다. OS 권한이나 조직의 강제 정책을 해제하지는 않습니다.
+
+기존 설정에 두 항목이 없으면 `workspace-write` + `on-request`로 실행합니다. 이전 코드의 `untrusted` 승인 정책은 최신 Codex에서 폐기되어 `on-request`로 변경했습니다.
 
 토큰은 비밀 관리자나 현재 셸에서 환경변수로 주입합니다. 예를 들어 zsh에서는 화면과 셸 이력에 토큰을 직접 쓰지 않고 입력할 수 있습니다.
 
@@ -116,7 +133,7 @@ npm start -- status my-project
 - **기본 `project`:** 설정된 프로젝트 폴더에서 순차 실행합니다. 앱 표시가 검증된 방식이며 별도 브랜치를 자동 생성하지 않습니다. 기존 미커밋 변경과 수동 작업을 함께 수정하지 않도록 운영하세요.
 - **선택 `worktree`:** Git 저장소의 HEAD에서 `remote-working/<연결>/<작업번호>` 브랜치와 독립 worktree를 만듭니다. 기존 미커밋 변경은 복사하지 않습니다. worktree는 자동 삭제하지 않습니다. 이 모드의 앱 프로젝트 그룹 분류는 사용 환경에서 검증해야 합니다.
 - 커밋·푸시·배포는 사용자가 명시적으로 요청한 경우 Codex가 프로젝트의 기존 명령과 지침을 따라 수행합니다. CLI 자체가 고정된 CI/CD 어댑터나 자동 롤백을 제공하지는 않습니다. 배포 설정과 기존 스크립트가 프로젝트에 필요합니다.
-- Codex `workspace-write` + `untrusted` 승인 정책을 사용합니다. Codex가 요청한 승인만 관리자에게 전달합니다. 모든 셸 명령을 별도로 심사하거나 Git/배포 권한을 완전히 격리하는 정책 엔진은 아닙니다.
+- 기본값은 Codex `workspace-write` + `on-request` 승인 정책입니다. 전체 액세스와 승인 생략은 연결 설정에서 선택합니다. Codex가 요청한 승인만 관리자에게 전달합니다. 모든 셸 명령을 별도로 심사하거나 Git/배포 권한을 완전히 격리하는 정책 엔진은 아닙니다.
 - 승인 요청은 10분 후 만료되고, 특정 서버 요청에 한 번만 적용됩니다. 재시작 이후 이전 승인 번호는 사용할 수 없습니다.
 - 승인 전에 실제 명령·작업 경로·권한 범위를 확인하세요. 특히 운영 배포를 공유할 때는 CI 쪽 보호된 환경/승인을 추가하세요.
 - 작업 요청자의 역할은 대화 접근을 제한하지만 Codex의 로컬 계정·기존 MCP 도구 권한 전체를 격리하지 않습니다. 전용 OS 사용자/실행 환경이 필요한 배포에서는 별도로 구성해야 합니다.
